@@ -1,0 +1,81 @@
+#image: docker:20.10.8-git
+
+stages:
+  - mvn-build
+  - sonarqube-check
+  - docker-build
+  #- kubernetes-deploy
+  # - Push-to-ECR
+  # - trigger-qa-branch
+
+mvn_build:
+  stage: mvn-build
+  tags:
+    - lib-management
+  before_script:
+    - mvn --version 
+  script:
+    #- mvn -nsu install -DskipTests -Ddockerfile.build.skip=true
+    - mvn clean install
+    
+sonarqube_check:
+  stage: sonarqube-check
+  tags:
+    - lib-management
+  before_script:
+    - echo running unit test cases and sonar analysis
+  script:
+    - mvn clean install sonar:sonar -Dsonar.host.url="$SONAR_HOST_URL" -Dsonar.login="$SONAR_TOKEN" -Dsonar.qualitygate=library
+  only:
+  needs: ["mvn_build"]
+
+docker_build:
+  stage: docker-build
+  #image: docker:stable 
+  tags:
+    - lib-management  
+  before_script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD  
+  script:
+    - docker build -t $DOCKER_REGISTRY/$DOCKER_REPO:$DOCKER_IMAGE_TAG .
+    - docker push $DOCKER_REGISTRY/$DOCKER_REPO:$DOCKER_IMAGE_TAG  
+  only:
+  needs: ["sonarqube_check"]  
+  when: manual 
+
+# deploy:
+#   stage: kubernetes-deploy
+#   tags:
+#     - lib-management
+#   script:  
+#     # - echo "$SERVICE_ACCOUNT_KEY" > key.json
+#     # - gcloud auth activate-service-account --key-file=key.json
+#     # - gcloud config set project decoded-agency-377106
+#     # - gcloud config set container/cluster demo-cluster
+#     # - gcloud config set compute/zone asia-south1-c
+#     # - gcloud container clusters get-credentials demo-cluster --zone us-central1-c --project decoded-agency-377106
+#     - kubectl config use-context eks-qa
+#     - kubectl get nodes
+#     #- kubectl replace --force -f deployment.yml
+#     - kubectl get all
+#   only:
+#   needs: ["docker_build"]
+#   when: manual 
+
+# Push_to_ECR:
+#   stage: Push-to-ECR
+#   tags:
+#     - lib-management
+#   script:
+#     - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 748926122128.dkr.ecr.us-east-1.amazonaws.com
+#     - docker build -t lib-management .
+#     - docker tag lib-management:latest 748926122128.dkr.ecr.us-east-1.amazonaws.com/lib-management:latest
+#     - docker push 748926122128.dkr.ecr.us-east-1.amazonaws.com/lib-management:latest  
+   
+# trigger_qa_branch:
+#   stage: trigger-qa-branch
+#   tags:
+#     - lib-management
+#   script:
+#   - echo "triggering the qa branch gitlabci.yaml demo"
+#   - "curl -X POST --fail -F token=glptt-8370db029cbc9527dc54c42525776a2f36f798d1 -F ref=qa https://gitlab.com/api/v4/projects/43767505/trigger/pipeline"
