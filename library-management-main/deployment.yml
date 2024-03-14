@@ -16,7 +16,7 @@ spec:
    spec:
      containers:
        - name: library-app
-         image: sushmainnominds/librarymanagement:latest
+         image: jaykotia/libmanagementrepo:latest
          imagePullPolicy: Always
          ports:
            - containerPort: 9080
